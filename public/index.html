@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+  <title>PI-5G-Measurements</title>
+  <link rel="stylesheet" type="text/css" href="index.css">
+
+</head>
+
+
+<h1>  <img width="40px" src="/assets/pi-logo.svg" /> Raspberry-PI 5g Measurements</h1>
+
+
+
+
+
+
+<section class="flex">
+  <select id="room-selector">
+    <option> It doesn't matter </option>
+  </select>
+  or enter the name of the room to match
+  <label>The Raspberry will measure for a new room named:
+    <input type="text" placeholder="Enter your room name here " />
+  </label>
+</section>
+
+<section class="buttons">
+  <button> Send to server</button>
+  <button id="measure"> Trigger measurement</button>
+  <button id="tests"> TESTS </button>
+</section>
+
+<section>
+  <h2> Description </h2>
+  <p>
+    I need to associate this data with a room. <br />
+    I need to extract a timestamp.<br />
+    Parse the data given by the Raspberry to have a similar structure to that of the phone.<br />
+    The Raspberry is supposed to measure at the same time as the phone. So maybe it makes sense to not assume that rooms
+    pre-exist. For this reason I have added an input field.
+
+  </p>
+</section>
+
+<section>
+  <h2> Measurements preview </h2>
+  <p id="modem-info"></p>
+</section>
+
+<script type="module" src="/index.client.js">  </script>
+</body>
+
+</html>

@@ -1,0 +1,70 @@
+:root{
+    --bg : #F5ECE0;
+  --accent-main:#5F99AE;
+  --accent-second: #336D82;
+  --accent-third: #2C2C2C;
+}
+
+*{
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body{
+    margin: 0 auto;
+    text-align: center;
+    min-height: 100vh;
+    background-color: var(--bg);
+    display: grid;
+    grid-template-columns: 1fr;
+    row-gap: 1em;
+    align-items: center;
+    justify-items: center;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 1.5rem;   
+}
+
+h1,h2,h3{
+    padding: 1em;
+    color:var(--accent-main);
+}
+
+
+section{
+    margin: 0 10vh;
+}
+
+
+button, input, select{
+    padding: 1em;
+    font-size: large;
+
+    border: 1px var(--accent-main) solid;
+    /* color: var(--accent-main); */
+}
+
+button{
+    padding: 1.2em;
+    border-radius: 12px;
+
+    background-color: var(--accent-second);
+    color: white;
+    font-size: large;
+}
+
+
+
+.flex{
+    display: flex;
+    gap:1em;
+    flex-direction: column;
+}
+
+
+
+
+p{
+    background-color: white;
+    padding: 2em 2em;
+}
