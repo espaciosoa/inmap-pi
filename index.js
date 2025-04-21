@@ -1,28 +1,35 @@
 const express = require("express")
 const path = require("path")
+const dotenv = require("dotenv")
+dotenv.config()
 const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
-const { parsePDPContextDefinitions, parseNetRegitrationState, parseServingCell } = require("./parsing.js")
+const { parsePDPContextDefinitions, parseNetRegitrationState,
+  parseServingCell, parseActiveConfigurations, parseDeviceInfo,
+  parseSignalStrength, parseQueriedReferenceSignalReceivedPower,
+  parseReferenceSignalReceivedQuality, parseSignalToInterferencePlusNoiseRatio
+} = require("./parsing.js")
 
 // Debugging using minicom don't forget
 // sudo minicom -D /dev/ttyUSB2
+// send ATE1 to enable echo as the first thing
 //All Commands Datasheet
 //https://files.waveshare.com/upload/8/8a/Quectel_RG520N%26RG52xF%26RG530F%26RM520N%26RM530N_Series_AT_Commands_Manual_V1.0.0_Preliminary_20220812.pdf
 
-const port = new SerialPort({
+
+const serialPort = new SerialPort({
   path: '/dev/ttyUSB2',
   baudRate: 115200,
 });
 // Use a readline parser to handle responses from the 5G module
-const parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' }));
-
+const parser = serialPort.pipe(new ReadlineParser({ delimiter: '\r\n' }));
 
 /**
  * Async function that executes Attention (AT) commands in the 5G module connected to the Raspberry Pi
  * @param {string} command an AT command string (e.g., AT+QENG="servingcell"  )
  * @returns on astring containing the full result or 
  */
-function sendATCommandAsync(command) {
+function sendATCommandAsync(command, logs = true) {
 
   // Result is wrapped in a promise because the serial port is async
   return new Promise((resolve, reject) => {
@@ -40,7 +47,7 @@ function sendATCommandAsync(command) {
 
 
     const onData = (data) => {
-      console.log('\t\t➡️  Received:', data);
+      if (logs) console.log('\t\t➡️  Received:', data);
       responseData.push(data)
 
       if (data === "ERROR" || data.includes("ERROR")) {
@@ -94,6 +101,7 @@ function cleanATResponse(ATResponse) {
 
 
 
+// Stores the most recent status of the module
 let initStatus = {}
 
 
@@ -104,12 +112,29 @@ let initStatus = {}
 async function init5GModule() {
 
   console.log("📶 Initializing 5G module...")
-
   // Test connection (single alive)
-  initStatus.unitResponsive = await sendATCommandAsync('AT', 'OK');
+  try {
+    initStatus.unitResponsive = await sendATCommandAsync('AT', 'OK');
+  }
+  catch (e) {
+    console.error("❔ Module not responding. Check the connection. Maybe you set a wrong baud rate or forgot to connect the module to current")
+    throw new Error("Module not responding. Check the connection. Maybe you set a wrong baud rate or forgot to connect the module to current")
+  }
+
   // Disable command echo
   initStatus.echoStatus = await sendATCommandAsync("ATE0")
 
+
+  initStatus.deviceInfo = await sendATCommandAsync('ATI');
+  console.log("Device info:", initStatus.deviceInfo)
+
+
+  initStatus.imei = await sendATCommandAsync('AT+GSN');
+  console.log("IMEI:", initStatus.imei)
+
+
+  const displayConfigurations = parseActiveConfigurations(await sendATCommandAsync(`AT&V`))
+  console.log("DISPLAY CONGIG", displayConfigurations)
   //Check if usb mode is active to connect the Raspbi using the USB for traffic
   initStatus.usbMode = await sendATCommandAsync('AT+QCFG="usbnet"')
   await wait(500);
@@ -150,22 +175,15 @@ async function init5GModule() {
   // Reboots the module into full functionality mode, applying all settings.
   // full functionality mode (1) , reboot module (1)
   initStatus.fullFunctionality = await sendATCommandAsync('AT+CFUN?', "+CFUN") == 1
-  if (!initStatus.fullFunctionality)
+  if (!initStatus.fullFunctionality) {
     console.warn("full functionality is not enabled on device")
+    console.log("⚠️ Rebooting module to full functionality mode...")
+    initStatus.fullFunctionality = await sendATCommandAsync('AT+CFUN=1,1', "+CFUN")
+    console.log(`DONE ${initStatus.fullFunctionality}`)
+  }
   await wait(500);
-  // AT+CFUN=1,1
 
 
-
-  // //Start data connection
-  // try {
-  //   initStatus.startDataConnection = await sendATCommandAsync("AT+QIACT=1", "+QIACT")
-
-  // }
-  // catch (e) {
-  //   console.log("\t\t❌ ERROR", e.message)
-  // }
-  // await wait(600); 
 
   // +CGCONTRDP: <cid>,<bearer_id>,<APN>,<local_addr_and_subnet_mask>,<gw_addr>,
   // <DNS_prim_addr>,<DNS_sec_addr>,<P-CSCF_prim_addr>,<P-CSCF_sec_addr>
@@ -178,12 +196,11 @@ async function init5GModule() {
   initStatus.netRegistrationState = parseNetRegitrationState(await sendATCommandAsync("AT+CEREG?"))
 
   if (initStatus.netRegistrationState !== "0,1" && initStatus.netRegistrationState !== "0,5") {
-    console.log("SIM not registered in network. Executing that. Trying to register in the network")
+    console.log("SIM not registered in network. Trying to register in the network now...")
     initStatus.sos = await sendATCommandAsync('AT+CGDCONT=1,"IPV4V6","telefonica.es"')
-
   }
 
-  //Check if APN is configured corerectl
+  //Check if APN is configured correctly
   initStatus.APNConfig = await sendATCommandAsync('AT+CGDCONT?')
 
 
@@ -193,49 +210,20 @@ async function init5GModule() {
   console.log("Bearer info:", initStatus.bearer);
 
   // await sendATCommandAsync('AT+COPS=0'); // Automatic operator selection
-  // await sendATCommandAsync('AT+CEREG=2'); // Enable unsolicited registration + info
+  const unsolicitedReg = await sendATCommandAsync('AT+CEREG=2'); // Enable unsolicited registration + info
+  console.log("unsolicited Registration", unsolicitedReg)
   // await wait(3000);
 
-  // initStatus.netRegistrationState = parseNetRegitrationState(await sendATCommandAsync("AT+CEREG?"))
-
-
-
-
-
-  initStatus.ping = await sendATCommandAsync('AT+QPING=1,"8.8.8.8"')
-
-  initStatus.dnsCheck = await sendATCommandAsync('AT+QIDNSGIP=1,"google.com"')
-
-  initStatus.ipAssigned = await sendATCommandAsync('AT+CGPADDR=1')
-
-
-  console.log("TRYING TO MAKE REQUEST")
-
-  // try {
-  //   //TEST MAKE REQUEST
-  //   console.log(await sendATCommandAsync('AT+QHTTPCFG="contextid",1'))
-
-  //   console.log(await sendATCommandAsync('AT+QHTTPURL=29,80')) +
-
-  //     rawSend('https://google.com')
-  //   console.log(await sendATCommandAsync('AT+QHTTPGET=80'))
-
-  //   console.log("CONTENT HTTP", await sendATCommandAsync('AT+QHTTPREAD=80'))
-
-  // }
-  // catch (e) {
-  //   console.log("ERROR ATTEMPTING A REQUEST")
-  // } finally {
-  //   await sendATCommandAsync('AT+QIDEACT=1')
-
-  // }
-
+  initStatus.netRegistrationState = parseNetRegitrationState(await sendATCommandAsync("AT+CEREG?"))
 
 
   initStatus.servingCell = await sendATCommandAsync('AT+QENG="servingcell"')
 
 
-  console.log(initStatus)
+  console.log(await generalCommands())
+
+  console.log(await signalMeasurementCommands())
+
 
 }
 
@@ -251,7 +239,7 @@ async function runATSequence() {
     modemData.apnInfo = await sendATCommandAsync('AT+CGCONTRDP');
 
     await wait(500);
-    modemData.signalStrength = await sendATCommandAsync('AT+CSQ');
+    modemData.signalStrength = parseSignalStrength(await sendATCommandAsync('AT+CSQ'));
     await wait(500);
 
     modemData.operatorInfo = await sendATCommandAsync('AT+COPS?');
@@ -270,92 +258,143 @@ function wait(ms) {
 
 
 
-async function generalCommands(){
+async function generalCommands() {
 
   //Identification of the device (mix of info - Manufacturer model firmware)
-  `ATI` // Returns something like Quectel (RM520-GL) ...
+  const deviceInfo = parseDeviceInfo(await sendATCommandAsync(`ATI`)) // Returns something like Quectel (RM520-GL) ...
 
   //Get IMEI
-  `AT+GSN`
+  const imei = await sendATCommandAsync(`AT+GSN`)
 
   //Display configurations
-  `AT&V`
+  const activeConfiguration = parseActiveConfigurations(await sendATCommandAsync(`AT&V`))
 
-  //Makes sure the responses include also the command that was sent
-  `AT1`
+  //Echo Makes sure the responses include also the command that was sent
+  // `AT1`
 
+  const flatConfiguration = activeConfiguration.map(configuration => { return { [`${configuration.key}`]: configuration.value } })
+
+  return {
+    deviceInfo, imei,
+    flatConfiguration
+  }
 }
 
 
 
-async function simRelatedCommands(){
+async function simRelatedCommands() {
 
   //CHECK ACTIVE SIM SLOT
   `AT+QUIMSLOT?` // Returns probably 1
 
 
-  //Check PIN status
-`AT+CPIN=?`
+    //Check PIN status
+    `AT+CPIN=?`
 
-//Enter the pin to make the SIM work
-`AT+CPIN="7771"` // PIN code for the SIM card
-//I got this response
-// +CPIN: READY                                                                                                                                               
-// +QUSIM: 1                                                                                                                                                 
-// +QIND: SMS DONE                                                                                                                                         
-// +QIND: PB DONE 
+    //Enter the pin to make the SIM work
+    `AT+CPIN="7771"` // PIN code for the SIM card
+    //I got this response
+    // +CPIN: READY                                                                                                                                               
+    // +QUSIM: 1                                                                                                                                                 
+    // +QIND: SMS DONE                                                                                                                                         
+    // +QIND: PB DONE 
 
-// Query initialization status of the SIM card 
-`AT+QINISAT`// Expected 7 as return (means the sim is ready, sms is init, phonebook init also)
+    // Query initialization status of the SIM card 
+    `AT+QINISAT`// Expected 7 as return (means the sim is ready, sms is init, phonebook init also)
+}
+
+
+async function testConnectionCommands() {
+
+  initStatus.ipAssigned = await sendATCommandAsync('AT+CGPADDR=1')
+
+  initStatus.ping = await sendATCommandAsync('AT+QPING=1,"8.8.8.8"')
+  console.log("PING", initStatus.ping)
+  initStatus.dnsCheck = await sendATCommandAsync('AT+QIDNSGIP=1,"google.com"')
+
 }
 
 
 
-async function signalMeasurementCommands(){
 
 
-`AT+CSQ` // Returns signal stregnth
 
-`AT+QRSRP?` // Should return values in the range [-140, -44] dBm So only those are valid
-//Example result : +QRSRP: -111,-90,-32768,-32768,LTE   (the last two are invalid)
+async function signalMeasurementCommands(logs = true) {
 
-`AT+QRSRQ?` // Reference Signal Received Quality
-//Returns values in the range [-20, -3] dB
-//Should return something like: +QRSRQ: -13,-9,-32768,-32768,LTE 
+  const signalStrength = parseSignalStrength(await sendATCommandAsync(`AT+CSQ`)) // Signal Quality Report - Returns signal stregnth
+  // Should return something like +CSQ: 24,99
+  if (logs) console.log("1) Signal Strength:", signalStrength)
 
-`AT+QSINR?`//Signal-to-Interference plus Noise Ratio
-// should hold values in around [-20 to 40 dB] (see manual, depends on LTE or 5G)
-//+QSINR: 0,4,-32768,-32768,LTE                                                   
-// +QSINR: 12,7,-32768,-20,NR5G
+  const qrsrp = parseQueriedReferenceSignalReceivedPower(await sendATCommandAsync(`AT+QRSRP?`)) // Queried Reference Signal Received Power-
+  // Should return values in the range [-140, -44] dBm So only those are valid
+  //Example result : +QRSRP: -111,-90,-32768,-32768,LTE   (the last two are invalid)
+  if (logs) console.log("2) QRSRP", qrsrp)
+
+  const qrsrq = parseReferenceSignalReceivedQuality(await sendATCommandAsync(`AT+QRSRQ?`)) // Reference Signal Received Quality
+  //Returns values in the range [-20, -3] dB
+  //Should return something like: +QRSRQ: -13,-9,-32768,-32768,LTE 
+  if (logs) console.log("3) QRSRQ", qrsrq)
+
+  const sinr = parseSignalToInterferencePlusNoiseRatio(await sendATCommandAsync(`AT+QSINR?`))// Signal-to-Interference plus Noise Ratio
+  // should hold values in around [-20 to 40 dB] (see manual, depends on LTE or 5G)
+  // +QSINR: 0,4,-32768,-32768,LTE                                                   
+  // +QSINR: 12,7,-32768,-20,NR5G
+  if (logs) console.log("3) sinr", sinr)
 
 
-`AT+QNWINFO?` //Queries network information (returns info such as access technologies, operator and band)
-//           Technology,Operator(numeric), Band                      
-//+QNWINFO: "FDD LTE","21407","LTE BAND 3",1301 
+  //  await sendATCommandAsync(`AT+QNWINFO?`) //Queries network information (returns info such as access technologies, operator and band)
+  //           Technology,Operator(numeric), Band                      
+  //+QNWINFO: "FDD LTE","21407","LTE BAND 3",1301 
 
-`AT+QENG="servingcell"` // Returns info about the serving cell (band, frequency, PCI, EARFCN, etc)
+  const servingCell = parseServingCell(await sendATCommandAsync(`AT+QENG="servingcell"`)) // Returns info about the serving cell (band, frequency, PCI, EARFCN, etc)
+  // Example result (can be single line or multiline)
+  //"servingcell","NOCONN","LTE","FDD",214,07,290580A,465,1301,3,5,5,40D8,-98,-18,-57,11,0,-,25
+  if (logs) console.log("servingCell", servingCell)
+
+  // @todo
+  // const neighborCell = await sendATCommandAsync(`AT+QENG="neighbourcell"`) // Returns info about the neighbor cells (band, frequency, PCI, EARFCN, etc)
+
 }
 
 
 
-async function gpsCommands(){
+/**
+ * 💀 UNSUPPORTED DUE TO HOW I HANDLED PARSING FOR THE USE CASE 💀
+ * @deprecated
+ */
+async function makeHttpRequest() {
+  // try {
+  //   console.log(await sendATCommandAsync('AT+QHTTPCFG="contextid",1'))
+  //   console.log(await sendATCommandAsync('AT+QHTTPURL=29,80')) +
+  //   rawSend('https://google.com')
+  //   console.log(await sendATCommandAsync('AT+QHTTPGET=80'))
+  //   console.log("CONTENT HTTP", await sendATCommandAsync('AT+QHTTPREAD=80'))
+  // }
+  // catch (e) {
+  //   console.log("ERROR ATTEMPTING A REQUEST")
+  // } finally {
+  //   await sendATCommandAsync('AT+QIDEACT=1')
+  // }
+  throw new Error("Not supported method.")
+}
 
 
+/**
+ * 🟥 Not supported yet !
+ * The Quectel module has a GPS module but the current version of the firmware does not seem to support it. 
+ * I should update the firmware to the latest version and try again IF THE PROJECT NEEDS GPS
+ */
+async function gpsCommands() {
+  throw new Error("Not supported method. I believe there is an incompatibility with the GPS module")
   // Check that GPS is supported
-  `AT+GPSCFG="gnssconfig"` // Should return something like: +QGPSCFG: "gnssconfig",1 
-
-
+  await sendATCommandAsync(`AT+GPSCFG="gnssconfig"`) // Should return something like: +QGPSCFG: "gnssconfig",1 
 }
 
 
-
-
-
-// Interface side of things
-
-
-
-PORT = 3000
+// ---------------------------------------------
+// Web server / Interface side of things
+// ---------------------------------------------
+const PORT = process.env.LOCAL_PORT || 3000
 
 const app = express()
 app.use(express.static(path.join(__dirname, 'public')));
@@ -393,14 +432,24 @@ app.get('/modem-status', async (req, res) => {
 });
 
 
-app.listen(PORT, async () => {
-  await init5GModule()
-  // const measurementResult = await runATSequence()
-  // console.log(measurementResult)
 
-  console.log(`🌐 Server running on http://localhost:${PORT}\n`);
-});
 
+// MAIN FUNCTION
+(async () => {
+
+
+  try {
+    await init5GModule()
+  } catch (e) {
+    console.error("🟥 Unrecoverable error. 5G Module not initialized. Exiting...")
+    return process.exit(0)
+  }
+
+  app.listen(PORT, () => {
+    console.log(`🌐 Server running on http://localhost:${PORT}\n`);
+  });
+
+})();
 
 
 
