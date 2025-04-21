@@ -24,6 +24,9 @@ const serialPort = new SerialPort({
 // Use a readline parser to handle responses from the 5G module
 const parser = serialPort.pipe(new ReadlineParser({ delimiter: '\r\n' }));
 
+const SIM_PIN = process.env.SIM_PIN || "7771" // PIN code for the SIM card
+
+
 /**
  * Async function that executes Attention (AT) commands in the 5G module connected to the Raspberry Pi
  * @param {string} command an AT command string (e.g., AT+QENG="servingcell"  )
@@ -78,13 +81,13 @@ function sendATCommandAsync(command, logs = true) {
     };
 
     parser.on('data', onData);
-    port.write(command + '\r');
+    serialPort.write(command + '\r');
 
   });
 }
 
 function rawSend(dat) {
-  port.write(dat + '\r');
+  serialPort.write(dat + '\r');
 }
 
 
@@ -104,12 +107,10 @@ function cleanATResponse(ATResponse) {
 // Stores the most recent status of the module
 let initStatus = {}
 
-
-
 /**
  * Runs the configuration commands to test that the 5G module is actually ready
  */
-async function init5GModule() {
+async function init5GModule(log = false) {
 
   console.log("📶 Initializing 5G module...")
   // Test connection (single alive)
@@ -121,20 +122,17 @@ async function init5GModule() {
     throw new Error("Module not responding. Check the connection. Maybe you set a wrong baud rate or forgot to connect the module to current")
   }
 
-  // Disable command echo
+  // Disable command echo (VERY IMPORTANT)
   initStatus.echoStatus = await sendATCommandAsync("ATE0")
 
-
   initStatus.deviceInfo = await sendATCommandAsync('ATI');
-  console.log("Device info:", initStatus.deviceInfo)
-
+  if (log) console.log("Device info:", initStatus.deviceInfo)
 
   initStatus.imei = await sendATCommandAsync('AT+GSN');
-  console.log("IMEI:", initStatus.imei)
-
+  if (log) console.log("IMEI:", initStatus.imei)
 
   const displayConfigurations = parseActiveConfigurations(await sendATCommandAsync(`AT&V`))
-  console.log("DISPLAY CONGIG", displayConfigurations)
+  if (log) console.log("displayConfigurations", displayConfigurations)
   //Check if usb mode is active to connect the Raspbi using the USB for traffic
   initStatus.usbMode = await sendATCommandAsync('AT+QCFG="usbnet"')
   await wait(500);
@@ -145,7 +143,6 @@ async function init5GModule() {
     initStatus.usbMode = await sendATCommandAsync('AT+QCFG="usbnet",1 ')
   }
 
-
   // Ask for status of the SIM CARD
   initStatus.simStatus = await sendATCommandAsync('AT+CPIN?');
   switch (initStatus.simStatus) {
@@ -155,21 +152,23 @@ async function init5GModule() {
     case "SIM PIN":
       console.log("⚠️ SIM CARD needs the PIN to work. It will be entered")
       await wait(500)
-      initStatus.simStatus = await sendATCommandAsync('AT+CPIN="7771"', '+CPIN');
-      break
+      try {
+        initStatus.simStatus = await sendATCommandAsync(`AT+CPIN="${SIM_PIN}"`);
+      }
+      catch (e) {
+        throw new Error("PIN input failed. Please check it the provided one is right ", e.message)
+      }
     case "SIM PUK":
       console.log("⚠️ SIM CARD needs the PUK. It will be entered. \nYou are fucked because you don't know the PUK")
-      break
+      throw new Error("🟥PUK input is NOT implemented yet. ")
+
   }
 
   // Defines a PDP context, which tells the modem how to connect to the mobile data network.
   // AT+CGDCONT=1,"IPV4V6","YOUR_APN"  - APN is 'internet' for O2 carrier (work phone)
-  console.log("Checking APN configurations")
   initStatus.PDPContextDefinitions = parsePDPContextDefinitions(await sendATCommandAsync('AT+CGDCONT?'))
+  if (log) console.log("PDPContextDefinitions", initStatus.PDPContextDefinitions)
   await wait(500);
-
-
-
 
   // AT+CGDCONT=1,"IPV4V6","internet"
   // Reboots the module into full functionality mode, applying all settings.
@@ -189,10 +188,6 @@ async function init5GModule() {
   // <DNS_prim_addr>,<DNS_sec_addr>,<P-CSCF_prim_addr>,<P-CSCF_sec_addr>
   initStatus.confirmDataContext = await sendATCommandAsync("AT+CGCONTRDP")
 
-
-  // initStatus.idkj = await sendATCommandAsync("AT+CEREG=2")
-
-
   initStatus.netRegistrationState = parseNetRegitrationState(await sendATCommandAsync("AT+CEREG?"))
 
   if (initStatus.netRegistrationState !== "0,1" && initStatus.netRegistrationState !== "0,5") {
@@ -207,48 +202,23 @@ async function init5GModule() {
 
   //OJO THE BEARER CONTEXT IS ACTIVE
   initStatus.bearer = await sendATCommandAsync("AT+QIACT?");
-  console.log("Bearer info:", initStatus.bearer);
+  if (log) console.log("Bearer info:", initStatus.bearer);
 
   // await sendATCommandAsync('AT+COPS=0'); // Automatic operator selection
   const unsolicitedReg = await sendATCommandAsync('AT+CEREG=2'); // Enable unsolicited registration + info
-  console.log("unsolicited Registration", unsolicitedReg)
+  if (log) console.log("unsolicited Registration", unsolicitedReg)
   // await wait(3000);
 
   initStatus.netRegistrationState = parseNetRegitrationState(await sendATCommandAsync("AT+CEREG?"))
-
-
   initStatus.servingCell = await sendATCommandAsync('AT+QENG="servingcell"')
 
 
-  console.log(await generalCommands())
 
-  console.log(await signalMeasurementCommands())
+  console.log("▶️ Init status", JSON.stringify(initStatus, null, 4))
+  // console.log(await generalCommands())
+  // console.log(await signalMeasurementCommands())
 
 
-}
-
-async function runATSequence() {
-
-  let modemData = {}
-  try {
-    await sendATCommandAsync('AT');
-    await sendATCommandAsync('AT+CFUN=1');
-    await wait(500);
-
-    modemData.servingCell = parseServingCell(await sendATCommandAsync('AT+QENG="servingcell"'));
-    modemData.apnInfo = await sendATCommandAsync('AT+CGCONTRDP');
-
-    await wait(500);
-    modemData.signalStrength = parseSignalStrength(await sendATCommandAsync('AT+CSQ'));
-    await wait(500);
-
-    modemData.operatorInfo = await sendATCommandAsync('AT+COPS?');
-
-    return modemData;
-  } catch (err) {
-    console.error('Error in AT sequence:', err.message);
-    return { error: err.message };
-  }
 }
 
 function wait(ms) {
@@ -282,14 +252,18 @@ async function generalCommands() {
 
 
 
+/**
+ * IGNORE ME FOR NOW
+ * 
+ */
 async function simRelatedCommands() {
 
   //CHECK ACTIVE SIM SLOT
   `AT+QUIMSLOT?` // Returns probably 1
 
-
-    //Check PIN status
-    `AT+CPIN=?`
+  await sendATCommandAsync('AT+COPS?');
+  //Check PIN status
+  `AT+CPIN=?`
 
     //Enter the pin to make the SIM work
     `AT+CPIN="7771"` // PIN code for the SIM card
@@ -354,6 +328,15 @@ async function signalMeasurementCommands(logs = true) {
   // @todo
   // const neighborCell = await sendATCommandAsync(`AT+QENG="neighbourcell"`) // Returns info about the neighbor cells (band, frequency, PCI, EARFCN, etc)
 
+
+  return {
+    signalStrength,
+    qrsrp,
+    qrsrq,
+    sinr,
+    servingCell
+  }
+
 }
 
 
@@ -400,35 +383,38 @@ const app = express()
 app.use(express.static(path.join(__dirname, 'public')));
 
 
+// Just returns the GUI view for triggering measurements
 app.get("/", (req, res) => {
   return res.sendFile("index.html")
 })
 
-
-app.get("/connect", async (req, res) => {
-  const autoSelectOperator = await sendATCommandAsync('AT+COPS=0')  //Auto select operator
-  await wait(300)
-
-  // const tryDataCall = await sendATCommandAsync('AT+QIACT=1') //Try a data call to initiate pdp context
-  //   await wait(300)
-  const tryServingCell = await sendATCommandAsync('AT+QENG="servingcell"')
-
-  return res.json({ a: autoSelectOperator, c: tryServingCell })
-})
-
-
-
 app.get('/measure', async (req, res) => {
-  const modemData = await runATSequence();
-  console.log(modemData)
-  res.json({ message: 'AT commands triggered! Check /modem-status for results.' });
+  try {
+    console.log("📶 Triggering measurements...")
+    const allMeasurements = await signalMeasurementCommands()
+    console.log(allMeasurements)
+    return res.json({
+      success: true,
+      data: {
+        measurementOwner: "ESOA",
+        measurementDevice: "RaspberryPi4",
+        timestamp: new Date().toISOString(),
+        allMeasurements
+      }
+      });
+  }
+  catch (e) {
+    return res.status(500).json({ 
+      success: false,
+      message: `Error triggering AT commands ${e.message}`});
+  }
+
 });
 
 app.get('/modem-status', async (req, res) => {
-
-  const modemData = await runATSequence();
+  const modemData = initStatus
   console.log(modemData)
-  res.json(modemData);  // Send the collected modem data
+  res.json(modemData);  // Send the init status data
 });
 
 
@@ -436,12 +422,10 @@ app.get('/modem-status', async (req, res) => {
 
 // MAIN FUNCTION
 (async () => {
-
-
   try {
     await init5GModule()
   } catch (e) {
-    console.error("🟥 Unrecoverable error. 5G Module not initialized. Exiting...")
+    console.error("🟥 Unrecoverable error. 5G Module not initialized. Exiting...", e.message)
     return process.exit(0)
   }
 
