@@ -397,7 +397,7 @@ app.get('/measure', async (req, res) => {
       success: true,
       data: {
         measurementOwner: "ESOA",
-        measurementDevice: "RaspberryPi4",
+        measurementDevice: "RaspberryPi4B",
         timestamp: new Date().toISOString(),
         allMeasurements
       }
