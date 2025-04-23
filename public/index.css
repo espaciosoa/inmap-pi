@@ -67,4 +67,30 @@ button{
 p{
     background-color: white;
     padding: 2em 2em;
+  
+
+    
+}
+
+#modem-info{
+    margin: 0 auto;
+    max-width: 80%;
+    overflow: hidden;
+
+}
+
+
+.obj-group{
+    padding:1em;
+    border:#336D82 1px solid;
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+}
+
+.key{
+    font-weight: bold ;
+}
+
+.val{
+    
 }

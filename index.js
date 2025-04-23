@@ -378,38 +378,205 @@ async function gpsCommands() {
 // Web server / Interface side of things
 // ---------------------------------------------
 const PORT = process.env.LOCAL_PORT || 3000
+const BACKEND_SERVER = process.env.BACKEND_SERVER
+if (BACKEND_SERVER == null) throw new Error("BACKEND_SERVER environment variable not provided")
+
+
 
 const app = express()
 app.use(express.static(path.join(__dirname, 'public')));
-
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Just returns the GUI view for triggering measurements
 app.get("/", (req, res) => {
   return res.sendFile("index.html")
 })
 
-app.get('/measure', async (req, res) => {
+
+
+async function tryMeasure() {
+
   try {
     console.log("📶 Triggering measurements...")
     const allMeasurements = await signalMeasurementCommands()
     console.log(allMeasurements)
-    return res.json({
-      success: true,
-      data: {
-        measurementOwner: "ESOA",
-        measurementDevice: "RaspberryPi4B",
-        timestamp: new Date().toISOString(),
-        allMeasurements
-      }
-      });
+    return {
+      measurementOwner: "ESOA",
+      measurementDevice: "RaspberryPi4B",
+      timestamp: new Date().toISOString(),
+      allMeasurements
+    }
   }
   catch (e) {
-    return res.status(500).json({ 
-      success: false,
-      message: `Error triggering AT commands ${e.message}`});
+    throw new Error("Error executing measurements", e.error)
   }
 
-});
+}
+
+
+
+
+// async function handleMeasureRequest(req, res) {
+//   try {
+//     console.log("📶 Triggering measurements...")
+//     const allMeasurements = await signalMeasurementCommands()
+//     console.log(allMeasurements)
+//     return res.json({
+//       success: true,
+//       data: {
+//         measurementOwner: "ESOA",
+//         measurementDevice: "RaspberryPi4B",
+//         timestamp: new Date().toISOString(),
+//         allMeasurements
+//       }
+//     });
+//   }
+//   catch (e) {
+//     return res.status(500).json({
+//       success: false,
+//       message: `Error triggering AT commands ${e.message}`
+//     });
+//   }
+// }
+
+
+app.get('/measure', async (_, res) => {
+
+  console.log("/measure called")
+
+  try {
+    return res.json({
+      success: true,
+      data: await tryMeasure()
+    });
+
+  }
+  catch (e) {
+    return res.status(500).json({
+      success: false,
+      message: e.message
+    });
+  }
+
+
+})
+
+
+
+app.post("/measureAndSend", async (req, res) => {
+
+
+  console.log("/measureAndSend called")
+
+  console.log(req.body)
+  //extract name from request
+  const roomName = req.body.name
+
+
+  if (!roomName)
+    return res.status(400).json({
+      success: false,
+      message: "Bad request, missing name"
+    })
+
+  try {
+    const remRequest = new Request(`${BACKEND_SERVER}/Rooms`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "authorization": `${process.env.FIXED_AUTH_TOKEN}`
+      },
+      body: JSON.stringify({ name: roomName }),
+    });
+
+    console.log("Fetching...")
+    // Do request
+    const remResponse = await fetch(remRequest);
+
+    if (!remResponse.ok) {
+      console.log("AAAAAAAAAAAAAAAA")
+      console.log("remResponse", remResponse)
+      return res.status(200).json({
+        success: false,
+        message: `Backend responded with error code ${remResponse.status}`
+      })
+    }
+
+    // console.log(remResponse)
+
+    const resBody = await remResponse.json()
+    console.log("RESPONSE 1:", resBody)
+
+
+
+    // If it gets here I already should have an id for the room
+
+    // return res.status(200).json(
+    //   {
+    //     success: true,
+    //     data: resBody
+    //   }
+    // )
+
+    const roomId = resBody._id
+    //DO MEasurements and create a measurement object to send
+
+
+    console.log("Making request 2")
+    const measurements = await tryMeasure()
+
+    //This is what I will send to the backend so that later I can link the data 
+    const raspMeasurementBody = {
+      ...measurements,
+      roomId: roomId,
+      position: { x: 0, y: 0, z: 0 }
+    }
+
+
+    const postMeasurementsRequest = new Request(`${BACKEND_SERVER}/RoomMeasurements`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "authorization": `${process.env.FIXED_AUTH_TOKEN}`
+      },
+      body: JSON.stringify(raspMeasurementBody),
+    });
+
+    console.log("Fetch 2...")
+    const measurementsSavedResponse = await fetch(postMeasurementsRequest)
+
+    if (!measurementsSavedResponse.ok) {
+      console.log("Problem with saving measurements fetch")
+      console.log("measurementsSavedResponse", measurementsSavedResponse)
+      return res.status(200).json({
+        success: false,
+        message: `Backend (measurements) responded with error code ${remResponse.status}`
+      })
+    }
+
+
+    const savedRespData = await measurementsSavedResponse.json()
+
+
+
+
+    return res.status(200).json({
+      success: true,
+      data: savedRespData
+    })
+
+  }
+  catch (e) {
+    return res.status(200).json({
+      success: false,
+      message: `Request to measurements backend failed ${e}`
+    })
+  }
+
+})
+
+
 
 app.get('/modem-status', async (req, res) => {
   const modemData = initStatus

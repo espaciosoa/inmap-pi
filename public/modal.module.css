@@ -1,0 +1,163 @@
+.hide-scrollbar {
+    overflow: auto;
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE 10+ */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+    /* Chrome, Safari */
+}
+
+
+.modal-wrapper:has(.my-load-popup.open) {
+    display: block;
+}
+
+.modal-wrapper:has(.my-load-popup) {
+    display: none;
+}
+
+
+.modal-bg-page-cover {
+    display: block;
+    position: absolute;
+    top: 0%;
+    left: 0%;
+    right: 0%;
+    bottom: 0%;
+    height: 100%;
+    background-color: #3077715e;
+    filter: blur(10px);
+    z-index: 9999;
+}
+
+
+
+.my-load-popup:not(.open) {
+    display: none;
+}
+
+.my-load-popup {
+
+    min-width: 30%;
+    max-width: 40vw;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10000;
+    background-color: #3D3D3D;
+
+    color: white;
+    padding: 1em;
+    border-radius: 1em;
+    font-size: large;
+    padding: 1em;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+.my-load-popup .loading-text {
+    /* all: unset; */
+
+    word-wrap: break-word;
+    word-break: break-all;
+    padding: 1em;
+    font-size: 1.5em;
+    font-weight: bold;
+    border: 1px solid white;
+    border-radius: 12px;
+    background-color: #3D3D3D;
+    max-height: 200px;
+
+
+    overflow: hidden;
+    overflow-y: scroll;
+
+    /* width: 100%; */
+
+}
+
+
+
+.my-load-popup.open {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: center;
+    justify-items: center;
+    row-gap: 1em;
+}
+
+.my-load-popup {
+    display: none;
+}
+
+
+
+
+
+
+
+
+/* SVGs */
+.error-svg {
+    color: red;
+}
+
+.error-svg:not(.show) {
+    display: none;
+}
+
+.ok-svg {
+    color: green;
+}
+
+.ok-svg:not(.show) {
+    display: none;
+}
+
+.loading-svg {
+    color: rgb(111, 158, 0);
+}
+
+.loading-svg:not(.show) {
+    display: none;
+}
+
+.info-svg {
+    color: rgb(61, 175, 166)
+}
+
+.info-svg:not(.show) {
+    display: none;
+}
+
+
+
+
+
+@keyframes rotate {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.rotate {
+    animation: rotate linear 1s infinite;
+}

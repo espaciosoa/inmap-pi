@@ -10,6 +10,9 @@ export function showRoomsAsSelectOptions(selectItem, state, rooms, selected = un
             {{roomName}}
         </option>`
 
+    const defaultOption =`<option value="" selected disabled hidden>Select a preexisting room</option>`
+
+
     const allRoomsAsOptions = []
 
     rooms.forEach(r => {
@@ -21,6 +24,8 @@ export function showRoomsAsSelectOptions(selectItem, state, rooms, selected = un
             });
 
         const optionNode = JSUtils.txtToHTMLNode(myOptionFilledTemplate)
+
+        allRoomsAsOptions.push(JSUtils.txtToHTMLNode(defaultOption))
 
         //set selected by default if any
         console.log("SETTING SELECTED", selected)
