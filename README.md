@@ -43,6 +43,122 @@ A simple web UI page has been created to interact with the Quectel module as a n
 </p>
 
 
+## Sample format of generated measurements
+
+```json
+{
+        "_id": "14b47432-b3a2-4224-99e1-2491562831fb",
+        "roomId": "447df539-7f8b-470e-90ae-9377d282e12c",
+        "timestamp": "2025-04-23T08:59:33.868Z",
+        "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+        },
+        "version": 1,
+        "measurementOwner": "ESOA",
+        "measurementDevice": "RaspberryPi4B",
+        "allMeasurements": {
+            "signalStrength": {
+                "rssi": 22,
+                "rssiMeaning": "(-109 dBm to -53 dBm)",
+                "channelBitErrorRate": 99,
+                "channelBitErrorRateMeaning": "Not known or not detectable"
+            },
+            "qrsrp": [
+                {
+                    "prx": -108,
+                    "drx": -121,
+                    "rx2": "Invalid",
+                    "rx3": "Invalid",
+                    "radioAccessTech": "LTE"
+                },
+                {
+                    "prx": -79,
+                    "drx": -99,
+                    "rx2": -105,
+                    "rx3": -109,
+                    "radioAccessTech": "NR5G"
+                }
+            ],
+            "qrsrq": [
+                {
+                    "prx": -20,
+                    "drx": -18,
+                    "rx2": "Invalid",
+                    "rx3": "Invalid",
+                    "radioAccessTech": "LTE"
+                },
+                {
+                    "prx": -10,
+                    "drx": -14,
+                    "rx2": -11,
+                    "rx3": -11,
+                    "radioAccessTech": "NR5G"
+                }
+            ],
+            "sinr": [
+                {
+                    "prx": -5,
+                    "drx": -3,
+                    "rx2": "Invalid",
+                    "rx3": "Invalid",
+                    "radioAccessTech": "LTE"
+                },
+                {
+                    "prx": 22,
+                    "drx": 1,
+                    "rx2": -1,
+                    "rx3": -7,
+                    "radioAccessTech": "NR5G"
+                }
+            ],
+            "servingCell": {
+                "state": "NOCONN",
+                "stateExplanation": "UE is camping on a cell and has registered on the network and it is in idle mode",
+                "mode": "EN-DC",
+                "cells": [
+                    {
+                        "accessTechnology": "LTE",
+                        "is_tdd": "\"FDD\"",
+                        "mcc": "214",
+                        "mnc": "07",
+                        "cellId": "4472920",
+                        "pcid": "149",
+                        "earfcn": "2850",
+                        "freq_band_ind": "7",
+                        "ul_bandwidth": "5",
+                        "dl_bandwidth": "5",
+                        "tac": "6FC3",
+                        "rsrp": -108,
+                        "rsrq": -19,
+                        "rssi": "-67",
+                        "sinr": "8",
+                        "sinr_computed": -4,
+                        "cqi": 8,
+                        "tx_power": "229",
+                        "srxlev": "-"
+                    },
+                    {
+                        "accessTechnology": "NR5G-NSA",
+                        "mcc": "214",
+                        "mnc": "07",
+                        "pcid": "434",
+                        "rsrp": -79,
+                        "sinr": 22,
+                        "rsrq": -10,
+                        "arfcn": "636576",
+                        "band": "78",
+                        "nr_dl_bandwidth": "12",
+                        "scs": "1"
+                    }
+                ]
+            }
+        },
+        "measurementSession": "UNASSIGNED"
+    }
+```
+
 ## Hardware employed
 
 <p align="center">
