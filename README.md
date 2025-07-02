@@ -1,8 +1,17 @@
-# PI-5G-measurements
+
+<div align="center" >
+  <h1> <img src="https://github.com/user-attachments/assets/3dc5878a-aafc-4b55-aa1b-b9d3039faf32"  width="40px" height="40px" /> InMap-Pi - Indoors Signal Mapper (High precision measurement module for Raspberry Pi)</h4>
+</div>
 
 <p align="left">
   <img src=".showcase/logo.png" width="300"><br>
 </p>
+
+<div align="center">
+<img src="https://github.com/user-attachments/assets/df31ad46-1138-4ba1-aac1-85806de89264"  width="50%"/> 
+</div>
+
+
 
 The project consists of a node application that communicates via Serial Port with a cell connectivity module (Quectel RM520N-GL) and allows extracting information regarding the cell signal quality through AT commands.
 
@@ -10,8 +19,8 @@ AT commands are wrapped around a very simple (async / promises interface) and re
 
 Then, the UI provided allows sending the measured data to a Backend server to link the measurements with a given measured Room.
 
-<p align="left">
-  <img src=".showcase/raspi-demo.gif" width="300"/>
+<p align="center">
+  <img src=".showcase/raspi-demo.gif" width="50%"/>
 </p>
 
 ## Getting started
@@ -199,3 +208,23 @@ I added a [copy](./public/assets/docs/Quectel_RG520N&RG52xF&RG530F&RM520N&RM530N
 - The Raspberry PI has been set up to init without graphical interface, run `startx` in the command prompt if you need to use the GUI in the device.
 
 
+
+<hr/>
+<div align="center" >
+<img src="https://github.com/user-attachments/assets/3dc5878a-aafc-4b55-aa1b-b9d3039faf32"  width="50px" height="50px" /> <br/>
+  <h3> InMap - Indoors Signal Mapper Suite </h3>
+</div>
+<p align="center">
+<table>
+  <tr>
+    <td align="center"><img src="https://github.com/user-attachments/assets/9f964717-fbb2-4d28-ae00-e2a5c2ecc507" alt="App screenshot" /></td>
+    <td align="center"> <img src="https://github.com/user-attachments/assets/cdec1120-39aa-4181-87b6-d190dc953727" alt="Web screenshot" /> </td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/26d1bc26-7552-4698-85ee-442a08ebe180" alt="Pi-measurements screenshot" /></td>
+  </tr>
+  <tr>
+    <td align="center">🔗<a href="https://github.com/espaciosoa/inmap-app">  Android App </a></td>
+    <td align="center">🔗<a href="https://github.com/espaciosoa/inmap"> Web visualizer </a></td>
+    <td align="center">🔗<a href="https://github.com/espaciosoa/inmap-pi"> Precise measurement module for Raspberry-Pi</a></td>
+  </tr>
+</table>
+</p>
