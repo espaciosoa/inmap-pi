@@ -1,6 +1,5 @@
 
-const API_BASE_URL = "https://test.alreylz.me/v1/API/"
-// const API_BASE_URL = "https:///192.168.1.137/v1/API/"
+const API_BASE_URL = "https://measurements.espaciosoa.com/v1/API/"
 
 const FIXED_AUTH_TOKEN = "WEDONTUSETOKENSAROUNDHERE"
 
@@ -21,7 +20,6 @@ export async function postMeasurements() {
     const room = await postRoom()
 
     const measurement = await postMeasurement(room.id)
-
 
 
 }
